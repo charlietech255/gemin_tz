@@ -1,29 +1,23 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import os
 import requests
+import os
+import time
 
-# -----------------------------
-# App setup
-# -----------------------------
 app = FastAPI()
 
+# CORS (allow frontend JS)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # change to your domain later
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# -----------------------------
-# Hugging Face config
-# -----------------------------
 HF_API_TOKEN = os.getenv("HF_API_TOKEN")
-
 if not HF_API_TOKEN:
-    raise RuntimeError("HF_API_TOKEN environment variable not set")
+    raise RuntimeError("HF_API_TOKEN not set")
 
 MODEL_URL = "https://api-inference.huggingface.co/models/google/functiongemma-270m-it"
 
@@ -32,48 +26,61 @@ HEADERS = {
     "Content-Type": "application/json",
 }
 
-# -----------------------------
-# Request schema
-# -----------------------------
 class GenerateRequest(BaseModel):
     prompt: str
 
-# -----------------------------
-# Routes
-# -----------------------------
 @app.get("/")
-def health_check():
-    return {"status": "ok"}
+def root():
+    return {"status": "running"}
 
 @app.post("/generate")
-def generate_text(data: GenerateRequest):
+def generate(data: GenerateRequest):
+
+    # Instruction-style prompt (VERY IMPORTANT for FunctionGemma)
+    prompt = f"""### Instruction:
+{data.prompt}
+
+### Response:
+"""
+
     payload = {
-        "inputs": data.prompt,
+        "inputs": prompt,
         "parameters": {
             "max_new_tokens": 256,
             "temperature": 0.7
+        },
+        "options": {
+            "wait_for_model": True
         }
     }
 
-    response = requests.post(
-        MODEL_URL,
-        headers=HEADERS,
-        json=payload,
-        timeout=60
-    )
+    # Retry logic (model cold start)
+    for attempt in range(5):
+        response = requests.post(
+            MODEL_URL,
+            headers=HEADERS,
+            json=payload,
+            timeout=60
+        )
 
-    if response.status_code != 200:
+        if response.status_code == 200:
+            result = response.json()
+
+            if isinstance(result, list) and "generated_text" in result[0]:
+                return {
+                    "output": result[0]["generated_text"].replace(prompt, "").strip()
+                }
+
+            return result
+
+        # Model loading → wait and retry
+        if response.status_code == 503:
+            time.sleep(3)
+            continue
+
         raise HTTPException(
             status_code=response.status_code,
             detail=response.text
         )
 
-    result = response.json()
-
-    # Hugging Face usually returns a list
-    if isinstance(result, list) and "generated_text" in result[0]:
-        return {
-            "output": result[0]["generated_text"]
-        }
-
-    return result
+    raise HTTPException(status_code=504, detail="Model did not respond in time")
