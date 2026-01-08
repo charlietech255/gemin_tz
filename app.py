@@ -5,30 +5,42 @@ import requests
 import os
 import time
 
+# -----------------------------
+# App setup
+# -----------------------------
 app = FastAPI()
 
-# CORS (allow frontend JS)
+# Allow frontend JS requests
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # change to your domain in production
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# -----------------------------
+# Hugging Face config
+# -----------------------------
 HF_API_TOKEN = os.getenv("HF_API_TOKEN")
 if not HF_API_TOKEN:
-    raise RuntimeError("HF_API_TOKEN not set")
+    raise RuntimeError("HF_API_TOKEN environment variable not set")
 
-MODEL_URL = "https://api-inference.huggingface.co/models/google/functiongemma-270m-it"
+MODEL_URL = "https://router.huggingface.co/models/google/functiongemma-270m-it"
 
 HEADERS = {
     "Authorization": f"Bearer {HF_API_TOKEN}",
     "Content-Type": "application/json",
 }
 
+# -----------------------------
+# Request schema
+# -----------------------------
 class GenerateRequest(BaseModel):
     prompt: str
 
+# -----------------------------
+# Routes
+# -----------------------------
 @app.get("/")
 def root():
     return {"status": "running"}
@@ -36,7 +48,7 @@ def root():
 @app.post("/generate")
 def generate(data: GenerateRequest):
 
-    # Instruction-style prompt (VERY IMPORTANT for FunctionGemma)
+    # Instruction-style prompt for FunctionGemma
     prompt = f"""### Instruction:
 {data.prompt}
 
@@ -56,31 +68,37 @@ def generate(data: GenerateRequest):
 
     # Retry logic (model cold start)
     for attempt in range(5):
-        response = requests.post(
-            MODEL_URL,
-            headers=HEADERS,
-            json=payload,
-            timeout=60
-        )
+        try:
+            response = requests.post(
+                MODEL_URL,
+                headers=HEADERS,
+                json=payload,
+                timeout=60
+            )
 
-        if response.status_code == 200:
-            result = response.json()
+            if response.status_code == 200:
+                result = response.json()
 
-            if isinstance(result, list) and "generated_text" in result[0]:
-                return {
-                    "output": result[0]["generated_text"].replace(prompt, "").strip()
-                }
+                if isinstance(result, list) and "generated_text" in result[0]:
+                    # Remove prompt from output
+                    clean_output = result[0]["generated_text"].replace(prompt, "").strip()
+                    return {"output": clean_output}
 
-            return result
+                return result
 
-        # Model loading → wait and retry
-        if response.status_code == 503:
-            time.sleep(3)
+            # Model loading → retry
+            if response.status_code == 503:
+                time.sleep(3)
+                continue
+
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=response.text
+            )
+
+        except requests.exceptions.RequestException as e:
+            # Network / timeout errors → retry
+            time.sleep(2)
             continue
-
-        raise HTTPException(
-            status_code=response.status_code,
-            detail=response.text
-        )
 
     raise HTTPException(status_code=504, detail="Model did not respond in time")
