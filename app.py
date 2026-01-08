@@ -3,11 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
 import requests
-import time
 
 app = FastAPI()
 
-# Allow frontend JS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -36,29 +34,23 @@ def generate(data: GenerateRequest):
         "input": data.prompt
     }
 
-    # Retry logic for cold starts
-    for attempt in range(5):
-        try:
-            response = requests.post(RESPONSES_URL, headers=HEADERS, json=payload, timeout=120)
-            if response.status_code == 200:
-                result = response.json()
-                # Hugging Face Responses API returns outputs as a list of dicts
-                outputs = result.get("outputs", [])
-                if outputs:
-                    # Usually the first output contains "type":"generated_text"
-                    for out in outputs:
-                        if out.get("type") == "generated_text" and "text" in out:
-                            return {"output": out["text"]}
-                # Fallback
-                return {"output": str(result)}
-            elif response.status_code == 503:
-                # Model loading → wait and retry
-                time.sleep(3)
-                continue
-            else:
-                raise HTTPException(status_code=response.status_code, detail=response.text)
-        except requests.exceptions.RequestException:
-            time.sleep(2)
-            continue
+    response = requests.post(RESPONSES_URL, headers=HEADERS, json=payload, timeout=120)
 
-    raise HTTPException(status_code=504, detail="Model did not respond in time")
+    if response.status_code != 200:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+
+    result = response.json()
+
+    # ✅ Extract assistant message text
+    try:
+        for item in result.get("output", []):
+            if item.get("type") == "message" and item.get("role") == "assistant":
+                content = item.get("content", [])
+                for block in content:
+                    if block.get("type") == "output_text":
+                        return {"output": block.get("text", "").strip()}
+    except Exception:
+        pass
+
+    # Fallback (for debugging)
+    return {"output": "No assistant message found", "raw": result}
