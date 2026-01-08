@@ -3,8 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import requests
 import os
-import base64
-import time
 
 app = FastAPI()
 
@@ -19,41 +17,35 @@ HF_API_TOKEN = os.getenv("HF_API_TOKEN")
 if not HF_API_TOKEN:
     raise RuntimeError("HF_API_TOKEN not set")
 
-# Use any working Stable Diffusion model
-MODEL_URL = "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5"
+# Use the v1 Responses API for GPT‑OSS
+RESPONSES_URL = "https://router.huggingface.co/v1/responses"
 
 HEADERS = {
     "Authorization": f"Bearer {HF_API_TOKEN}",
-    "Content-Type": "application/json",
+    "Content-Type": "application/json"
 }
 
 class GenerateRequest(BaseModel):
     prompt: str
 
-@app.post("/generate-image")
-def generate_image(data: GenerateRequest):
+@app.post("/generate")
+def generate(data: GenerateRequest):
+    # Build a simple chat-ish structure
     payload = {
-        "inputs": data.prompt,
-        "options": {"wait_for_model": True}
+        "model": "openai/gpt-oss-120b:fastest",
+        "input": data.prompt,
+        "text_format": {"max_output_tokens": 256}
     }
 
-    for _ in range(5):
-        try:
-            response = requests.post(MODEL_URL, headers=HEADERS, json=payload, timeout=60)
-            if response.status_code == 200:
-                result = response.json()
-                # Hugging Face returns base64 image
-                if isinstance(result, dict) and "generated_image" in result:
-                    img_bytes = base64.b64decode(result["generated_image"])
-                    return {"image_bytes": result["generated_image"]}
-                # Some models return a list
-                if isinstance(result, list) and len(result) > 0 and "generated_image" in result[0]:
-                    return {"image_bytes": result[0]["generated_image"]}
-                return {"error": "No image returned"}
-            if response.status_code == 503:
-                time.sleep(3)
-                continue
-        except requests.exceptions.RequestException:
-            time.sleep(2)
-            continue
-    raise HTTPException(status_code=504, detail="Model did not respond in time")
+    response = requests.post(RESPONSES_URL, headers=HEADERS, json=payload)
+
+    if response.status_code != 200:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+
+    result = response.json()
+
+    # The Responses API returns an array of output events
+    # The text content is usually in "output_text"
+    text_output = result.get("output_text") or ""
+
+    return {"output": text_output}
