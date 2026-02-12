@@ -1,5 +1,3 @@
-Here's a simple, human-friendly README.md that covers **both** versions of your API (the OpenAI one + this new Hugging Face router version).
-
 ```markdown
 # Charlie's AI Proxy API
 
