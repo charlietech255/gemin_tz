@@ -1,94 +1,87 @@
-```markdown
 # Charlie's AI Proxy API
 
-Two super-lightweight FastAPI servers that let your frontend / apps talk to big language models **without exposing API keys**.
+Hii ni project rahisi sana ya FastAPI servers mbili zinazokusaidia kuunganisha apps zako na Large Language Models bila kuweka API keys zako hatarini upande wa frontend. Inafanya kazi kama daraja (proxy) kati ya user na AI providers.
 
-Made by Charlie (Charlie Syllas) 🚀
+Project hii imetengenezwa na Charlie (Charlie Syllas) kwa ajili ya kurahisisha workflow ya developers.
 
-## What you get
+## Unachopata hapa
 
-- Version 1 → talks to **OpenAI** (gpt-4o-mini by default)
-- Version 2 → talks to **Hugging Face router** (using openai/gpt-oss-120b:fastest or whatever model you pick)
-- Hides your API keys safely on the server
-- CORS = wide open (good for local dev + deployed frontends)
-- Very simple `/generate` endpoint
-- Version 2 has built-in identity protection ("who are you" questions get clean answer)
+- **Version 1**: Inatumia OpenAI (gpt-4o-mini kwa default).
+- **Version 2**: Inatumia Hugging Face router (model yoyote unayotaka, default ni gpt-oss-120b).
+- **Security**: API keys zako zinabaki salama in server-side.
+- **CORS Support**: ina support environment zote local na product level.
+- **Identity Guard**: Version 2 ina uwezo wa kulinda utambulisho wa bot isitoe majibu ya hovyo kuhusu "nani kakuunda".
 
-## Quick start (both versions)
+## Jinsi ya set (Setup Guide)
+
+Fuata hatua hizi kusetup kwenye mashine yako au server:
 
 ```bash
-# 1. Get the code
-git clone github.com/charlietech255/gemin_tz
-cd main
+# 1. Download project
+git clone https://github.com/charlietech255/gemin_tz
+cd gemin_tz
 
-# 2. Install
+# 2. Install dependencies
 pip install fastapi uvicorn requests python-dotenv pydantic
-# (or just: pip install -r requirements.txt if you have one)
 
-# 3. Create .env file
+# 3. Tengeneza .env file
 # ────────────────────────────────────────
-# For OpenAI version:
+# Kama unatumia OpenAI:
 OPENAI_API_KEY=sk-...
 
-# For Hugging Face router version:
+# Kama unatumia Hugging Face:
 HF_API_TOKEN=hf_...
 # ────────────────────────────────────────
 
-# 4. Run the one you want
-# OpenAI version
-uvicorn openai_version:app --reload    # (rename file to openai_version.py or whatever)
+# 4. Washa server unayotaka
+# Kwa OpenAI version
+uvicorn openai_version:app --reload
 
-# OR Hugging Face version
-uvicorn hf_version:app --reload        # (rename file to hf_version.py or similar)
+# Au kwa Hugging Face version
+uvicorn hf_version:app --reload
 ```
 
-Server usually starts at:  
-http://127.0.0.1:8000
+Server itakuwa hewani kwenye: [http://127.0.0.1:8000](http://127.0.0.1:8000)
+Kama unataka kuchek documentation na kujaribu API: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
-Docs + test page: http://127.0.0.1:8000/docs
+## Jinsi ya kuitumia (API Usage)
 
-## How to call it (both versions)
+Unaweza kui call API yako kwa kutumia curl au fetch kwenye JavaScript:
 
 ```bash
 curl -X POST http://localhost:8000/generate \
   -H "Content-Type: application/json" \
-  -d '{"prompt": "Explain what a closure is in JavaScript in one sentence"}'
+  -d '{"prompt": "Niambie faida tatu za kutumia Python"}'
 ```
 
-You get back something like:
+Majibu yatakuja hivi:
 
 ```json
 {
-  "reply": "..."     // OpenAI version
-  // or
-  "output": "..."    // HF version
+  "reply": "..."   // Kama unatumia OpenAI
+  // au
+  "output": "..."  // Kama unatumia HF version
 }
 ```
 
-## Differences between the two versions
+## Tofauti ya hizi version mbili
 
-| Feature                     | OpenAI version              | Hugging Face router version          |
-|-----------------------------|-----------------------------|---------------------------------------|
-| Provider                    | OpenAI                      | Hugging Face (router)                 |
-| Default model               | gpt-4o-mini                 | openai/gpt-oss-120b:fastest           |
-| Identity protection         | basic                       | strong (regex + forced answer)        |
-| Response field              | `"reply"`                   | `"output"`                            |
-| System prompt control       | hard-coded simple           | more rules + Markdown enforcement     |
-| Timeout                     | default requests            | 120 seconds                           |
+| Feature | OpenAI Version | Hugging Face Router |
+|---------|----------------|---------------------|
+| Provider | OpenAI | Hugging Face |
+| Model | gpt-4o-mini | openai/gpt-oss-120b |
+| Identity Protection | Basic | Iko vizuri zaidi (Regex) |
+| Field ya majibu | "reply" | "output" |
+| System Prompt | Rahisi (Static) | Ina sheria nyingi zaidi |
+| Timeout | Standard | 120 seconds |
 
-## Made with
+## Tools zilizotumika
 
-- FastAPI
-- requests
-- pydantic
-- python-dotenv
-- (very small amount of regex magic)
+- FastAPI kwa ajili ya speed
+- Requests kwa http request za AI models
+- Pydantic kwa data validation
+- Python-dotenv kwa .env setup
 
-Quick, cheap, private.  
-Enjoy!  
+Iko fasta, haina gharama kubwa, na ni private. Tumia upendavyo!
+
 — Charlie
-```
-
-Feel free to split them into two separate repos / readmes later if you want — for now this keeps everything in one friendly place.
-
-Let me know if you want it shorter, more serious, or with deployment instructions (Railway / Render / Fly.io etc.) 😄
