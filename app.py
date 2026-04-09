@@ -38,11 +38,11 @@ class GenerateRequest(BaseModel):
 def generate(req: GenerateRequest):
     prompt = req.prompt.strip()
 
-    # 🔒 Identity enforcement
+    #  Identity enforcement
     if IDENTITY_PATTERN.search(prompt):
         return {
             "output": (
-                f"## 🤖 {ASSISTANT_NAME}\n"
+                f"##  {ASSISTANT_NAME}\n"
                 f"I am **Charlie**, a programmer assistant developed by **{DEVELOPER_NAME}**."
             )
         }
